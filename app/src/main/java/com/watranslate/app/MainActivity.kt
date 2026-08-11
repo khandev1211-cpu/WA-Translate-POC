@@ -1,12 +1,13 @@
 package com.watranslate.app
 
-import android.content.BroadcastReceiver
+import android.Manifest
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
-import android.media.projection.MediaProjectionManager
+import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -15,28 +16,25 @@ import com.watranslate.app.databinding.ActivityMainBinding
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
+    private var isServiceRunning = false
 
-    private val statusReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            val msg = intent?.getStringExtra("message") ?: return
-            binding.tvResult.text = msg
-            binding.tvStatus.text = "Status: finished"
+    private val micPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            checkOverlayThenStart()
+        } else {
+            binding.tvStatus.text = "Status: mic permission denied"
         }
     }
 
-    private val projectionLauncher = registerForActivityResult(
+    private val overlayPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == RESULT_OK && result.data != null) {
-            binding.tvStatus.text = "Status: permission granted, starting capture…"
-
-            val serviceIntent = Intent(this, CaptureService::class.java).apply {
-                putExtra(CaptureService.EXTRA_RESULT_CODE, result.resultCode)
-                putExtra(CaptureService.EXTRA_RESULT_DATA, result.data)
-            }
-            ContextCompat.startForegroundService(this, serviceIntent)
+    ) {
+        if (Settings.canDrawOverlays(this)) {
+            startTranslateService()
         } else {
-            binding.tvStatus.text = "Status: permission denied"
+            binding.tvStatus.text = "Status: overlay permission denied"
         }
     }
 
@@ -45,28 +43,73 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        val filter = IntentFilter("com.watranslate.app.STATUS_UPDATE")
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(statusReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            @Suppress("UnspecifiedRegisterReceiverFlag")
-            registerReceiver(statusReceiver, filter)
+        binding.btnSettings.setOnClickListener {
+            startActivity(Intent(this, SettingsActivity::class.java))
         }
 
         binding.btnStartCapture.setOnClickListener {
-            binding.tvResult.text = ""
-            binding.tvStatus.text = "Status: requesting permission…"
+            if (isServiceRunning) {
+                stopTranslateService()
+            } else {
+                val prefs = getSharedPreferences("wa_translate_prefs", Context.MODE_PRIVATE)
+                val apiKey = prefs.getString("api_key", "")
+                if (apiKey.isNullOrBlank()) {
+                    binding.tvStatus.text = "Status: pehle Settings mein API key daalein"
+                    return@setOnClickListener
+                }
+                checkMicThenProceed()
+            }
+        }
 
-            // IMPORTANT: before pressing this button in real testing, the user
-            // needs to already be on an active WhatsApp call with the other
-            // person talking, so there's something to try to capture.
-            val mpm = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-            projectionLauncher.launch(mpm.createScreenCaptureIntent())
+        updateButtonState()
+    }
+
+    private fun checkMicThenProceed() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+            == PackageManager.PERMISSION_GRANTED
+        ) {
+            checkOverlayThenStart()
+        } else {
+            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
         }
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        unregisterReceiver(statusReceiver)
+    private fun checkOverlayThenStart() {
+        if (Settings.canDrawOverlays(this)) {
+            startTranslateService()
+        } else {
+            val intent = Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:$packageName")
+            )
+            overlayPermissionLauncher.launch(intent)
+        }
+    }
+
+    private fun startTranslateService() {
+        val prefs = getSharedPreferences("wa_translate_prefs", Context.MODE_PRIVATE)
+        val apiKey = prefs.getString("api_key", "") ?: ""
+
+        val serviceIntent = Intent(this, TranslateService::class.java).apply {
+            putExtra("api_key", apiKey)
+        }
+        ContextCompat.startForegroundService(this, serviceIntent)
+        isServiceRunning = true
+        updateButtonState()
+        binding.tvStatus.text = "Status: running — call ko loudspeaker pe daalein"
+    }
+
+    private fun stopTranslateService() {
+        val stopIntent = Intent(this, TranslateService::class.java).apply {
+            action = TranslateService.ACTION_STOP
+        }
+        startService(stopIntent)
+        isServiceRunning = false
+        updateButtonState()
+        binding.tvStatus.text = "Status: stopped"
+    }
+
+    private fun updateButtonState() {
+        binding.btnStartCapture.text = if (isServiceRunning) "Stop Translation" else "Start Translation"
     }
 }

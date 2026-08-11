@@ -8,35 +8,39 @@
     <!-- Needed to draw the floating translation overlay on top of WhatsApp -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
-    <!-- Needed to run a persistent foreground service while capturing audio -->
+    <!-- Needed to run a persistent foreground service while listening via mic -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
 
-    <!-- Record audio permission is still requested even for playback capture,
-         some OEMs require it -->
+    <!-- Mic permission - this is the actual audio source now, not system capture -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <application
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
-        android:label="WA Translate POC"
+        android:label="WA Translate"
         android:theme="@style/Theme.WATranslate"
         android:supportsRtl="true">
 
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:label="WA Translate POC">
+            android:label="WA Translate">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <service
-            android:name=".CaptureService"
+        <activity
+            android:name=".SettingsActivity"
             android:exported="false"
-            android:foregroundServiceType="mediaProjection" />
+            android:label="Settings" />
+
+        <service
+            android:name=".TranslateService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
 
     </application>
 </manifest>

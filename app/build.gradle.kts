@@ -5,13 +5,13 @@ plugins {
 
 android {
     namespace = "com.watranslate.app"
-    compileSdk = 37
+    compileSdk = 34
 
     defaultConfig {
         applicationId = "com.watranslate.app"
         // minSdk 29 (Android 10) is REQUIRED for AudioPlaybackCaptureConfiguration
         minSdk = 29
-        targetSdk = 37
+        targetSdk = 34
         versionCode = 1
         versionName = "0.1-poc"
     }
