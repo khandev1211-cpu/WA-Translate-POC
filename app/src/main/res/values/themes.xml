@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.WATranslate" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">#1EBEA5</item>
+        <item name="colorPrimaryDark">#128C7E</item>
+        <item name="colorAccent">#25D366</item>
+    </style>
+</resources>
